@@ -7,9 +7,9 @@ void Force(std::vector<double> *Fx,
            const std::vector<double> *x,
            const std::vector<double> *y,
            const std::vector<double> *z,
-           const double N, const double Z)
+           const uint32_t N)
 {
-    
+    uint32_t Z{N};
     double xx;
     double yy;
     double zz;
@@ -23,26 +23,27 @@ void Force(std::vector<double> *Fx,
 
         r = std::sqrt((*x)[i] * (*x)[i] + (*y)[i] * (*y)[i] + (*z)[i] * (*z)[i]);
 
+
         // Coulomb force
-        (*Fx)[i] += Z / r / r * (*x)[i] / r;
-        (*Fy)[i] += Z / r / r * (*y)[i] / r;
-        (*Fz)[i] += Z / r / r * (*z)[i] / r;
+        (*Fx)[i] += -(Z / r / r * (*x)[i] / r);
+        (*Fy)[i] += -(Z / r / r * (*y)[i] / r);
+        (*Fz)[i] += -(Z / r / r * (*z)[i] / r);
 
         for (uint32_t j = 0; j < N; j++)
         {
-            if(j!=i)
-            {            
+            if (i != j)
+            {
                 // Evaluate the relative position
                 xx = (*x)[i] - (*x)[j];
                 yy = (*y)[i] - (*y)[j];
                 zz = (*z)[i] - (*z)[j];
 
                 r = std::sqrt(xx * xx + yy * yy + zz * zz);
-                
-                // Relative coulomb force(i put the factor 1/2 because the sum is over all i and j)
-                (*Fx)[i] += -1.0 / 2 / r / r * xx / r;
-                (*Fy)[i] += -1.0 / 2 / r / r * yy / r;
-                (*Fz)[i] += -1.0 / 2 / r / r * zz / r;
+
+                // Relative coulomb force
+                (*Fx)[i] += 1.0 / r / r * xx / r;
+                (*Fy)[i] += 1.0 / r / r * yy / r;
+                (*Fz)[i] += 1.0 / r / r * zz / r;
             }
         }
     }
@@ -53,13 +54,13 @@ void Force(std::vector<double> *Fx,
 double U100(const double x,
             const double y,
             const double z,
-            const double Z)
+            const uint32_t Z)
 {
     double r;
     double psi;
 
     r = std::sqrt(x * x + y * y + z * z);
-    psi = 1.0 / std::sqrt(M_PI) * std::exp(-r * Z);
+    psi = std::pow(Z, 3.0 / 2) / std::sqrt(M_PI) * std::exp(-r * Z);
 
     return psi;
 }
@@ -68,7 +69,8 @@ double U100(const double x,
 void dU100(double &lap_U100, double &cor_U100,
            const double x, 
            const double y,
-           const double z)
+           const double z, 
+           const uint32_t Z)
 {
     // lap_U100 is the laplacian of U100
     // cor_U100 is the sum of the differenzation of U100
@@ -76,29 +78,34 @@ void dU100(double &lap_U100, double &cor_U100,
     
     r = std::sqrt(x * x + y * y + z * z);
 
-    lap_U100 = 8.0 / std::sqrt(M_PI) * std::exp(-4 * r);
-    cor_U100 = -4.0 / std::sqrt(M_PI) * (x + y + z) / r * std::exp(-4 * r);
+    lap_U100 = std::pow(Z, 5.0 / 2) / std::sqrt(M_PI) * (Z - 2.0 / r) *
+               std::exp(-(Z * r));
+    cor_U100 = -std::pow(Z, 5.0 / 2) / std::sqrt(M_PI) * (x + y + z) / r *
+               std::exp(-(Z * r));
 }
 
 // Wavefunction of isolated electron in 200 state
 double U200(const double x,
             const double y,
             const double z,
-            const double Z)
+            const uint32_t Z)
 {
     double r;
     double psi;
 
     r = std::sqrt(x * x + y * y + z * z);
-    psi = 1.0 / 4.0 / std::sqrt(2 * M_PI) * (2 - r) * std::exp(-r * Z / 2);
+    psi = std::pow(Z, 3.0 / 2) / std::sqrt(32 * M_PI) * (2 - r * Z) *
+          std::exp(-r * Z / 2);
 
     return psi;
 }
 
 // Derivation of U200 wavefunction
 void dU200(double &lap_U200, double &cor_U200,
-           const double x, const double y,
-           const double z)
+           const double x, 
+           const double y,
+           const double z,
+           const uint32_t Z)
 {
     // lap_U100 is the laplacian of U100
     // cor_U100 is the sum of the differenzation of U100
@@ -106,19 +113,19 @@ void dU200(double &lap_U200, double &cor_U200,
     
     r = std::sqrt(x * x + y * y + z * z);
 
-    lap_U200 = 2.0 / 3 / std::sqrt(2 * M_PI) * std::exp(-2 * r) * (1 - 1.0 / r);
-    cor_U200 = -4.0 / std::sqrt(M_PI) * (x + y + z) / r * std::exp(-4 * r);
+    lap_U200 = std::pow(Z, 5.0 / 2) / std::sqrt(32 * M_PI) *
+               std::exp(-(Z * r) / 2) *
+               ((1 + Z * (1 - r / 2)) * (Z / 2 - 2.0 / r) + Z / 2.0);
+    cor_U200 = -std::pow(Z, 5.0 / 2) / std::sqrt(32 * M_PI) * (x + y + z) / r *
+               (1 + Z * (1 - r / 2)) * std::exp(-(Z * r) / 2);
 }
 
-void Jastrow(double &f_j, double &f_j_d, double &f_j_dx,
+void Jastrow(double &f_j_d, double &f_j_dx,
              double &f_j_dy, double &f_j_dz, double &f_j_l,
              const double x_ij, const double y_ij,
              const double z_ij, const double r_ij,
              const double beta)
 {
-    // Jastrow function
-    f_j += r_ij / (1 + beta * r_ij);
-
     // Sum of first derivation of Jastrow function
     f_j_d += (x_ij + y_ij + z_ij) / (r_ij + beta * r_ij) /
             (r_ij + beta * r_ij) / r_ij;
@@ -129,55 +136,59 @@ void Jastrow(double &f_j, double &f_j_d, double &f_j_dx,
     f_j_dz += z_ij / (1 + beta * r_ij) / (1 + beta * r_ij) / r_ij;
 
     // Laplacian of Jastrow function
-    f_j_l += (3 * r_ij - r_ij * r_ij * ((1 + beta * r_ij) / r_ij + 2 * beta)) /
-            ((1 + beta * r_ij) * (1 + beta * r_ij) * (1 + beta * r_ij) * r_ij * r_ij);
+    f_j_l += 2.0 / r_ij / std::pow(1 + beta * r_ij, 3.0);
 }
 
-// PDF
-// change this one, implementation of P(x1)
-void PSI2_tot(double &psi, double &psi_b, double &psi_1,
+// Probability density function
+void PSI2_tot(double &psi, double &psi_b,
+              double &psi_1, double &psi_1_b,
               const std::vector<double> *x,
               const std::vector<double> *y,
               const std::vector<double> *z,
               const std::vector<double> *x1,
               const std::vector<double> *y1,
               const std::vector<double> *z1,
-              const double Z, const double N,
-              const double Lb, const double Beta,
-              const double Beta1)
+              const uint32_t , const double Lb,
+              const double Beta, const double Beta1)
 {
-    double xx;
     double x_ij;
-    double yy;
     double y_ij;
-    double zz;
     double z_ij;
+    double r_ij;
+    constexpr uint32_t N = 4;
+    uint32_t Z{N};
 
     // For two different beta
     double psi1{1};
     double psi2{1};
-
     double exp_j{0};
     double exp_j_b{0};
 
-    double A0, B0, C0, D0, E0, F0, G0, H0;
-
-    double r_ij;
-
     // For the different position
     double psi11{1};
+    double psi12{1};
+    double exp_j1{0};
+    double exp_j_b1{0};
     
-    double A1, B1, C1, D1, E1, F1, G1, H1;
+    // first one indicate x0(0) or x1(1)
+    // second one indicate U100(0) or U200(1)
+    // third indicate the particle
+    double coeff[2][2][N];
 
     for (uint32_t i{0}; i < N; i++)
     {
-
         // Control if a particle is go out from the box side Lb
-        if ((*x)[i] > Lb || (*y)[i] > Lb || (*z)[i] > Lb)
+        if (std::fabs((*x)[i]) > Lb || std::fabs((*y)[i]) > Lb || std::fabs((*z)[i]) > Lb)
         {
             psi1 *= 0;
             psi2 *= 0;
-            psi11 *=0;
+            // std::cout << "dentro 0" << std::endl;
+        }
+        if (std::fabs((*x1)[i]) > Lb || std::fabs((*y1)[i]) > Lb || std::fabs((*z1)[i]) > Lb)
+        {
+            psi11 *= 0;
+            psi12 *= 0;
+            // std::cout << "dentro 1" << std::endl;
         }
 
         // Estimetion of Jastrow function
@@ -185,7 +196,6 @@ void PSI2_tot(double &psi, double &psi_b, double &psi_1,
         {
             if (i != j)
             {
-
                 x_ij = (*x)[i] - (*x)[j];
                 y_ij = (*y)[i] - (*y)[j];
                 z_ij = (*z)[i] - (*z)[j];
@@ -201,72 +211,46 @@ void PSI2_tot(double &psi, double &psi_b, double &psi_1,
 
                 r_ij = std::sqrt(x_ij * x_ij + y_ij * y_ij + z_ij * z_ij);
 
-                exp_j += 1.0 / 2 * r_ij / (1 + Beta * r_ij);
+                exp_j1 += 1.0 / 2 * r_ij / (1 + Beta * r_ij);
+                exp_j_b1 += 1.0 / 2 * r_ij / (1 + Beta1 * r_ij);
             }
         }
+        coeff[0][0][i]=U100((*x)[i], (*y)[i], (*z)[i], Z);
+        coeff[0][1][i]=U200((*x)[i], (*y)[i], (*z)[i], Z);
 
-        psi1 *= std::exp(exp_j);
-        psi2 *= std::exp(exp_j_b);
-
-        psi11 *= std::exp(exp_j);
-
-        if (i == 0)
-        {
-            // For x0
-            A0 = U100((*x)[i], (*y)[i], (*z)[i], Z);
-            B0 = U200((*x)[i], (*y)[i], (*z)[i], Z);
-
-            // For x1
-            A1 = U100((*x1)[i], (*y1)[i], (*z1)[i], Z);
-            B1 = U200((*x1)[i], (*y1)[i], (*z1)[i], Z);
-        }
-
-        if (i == 1)
-        {
-            // For x0
-            C0 = U100((*x)[i], (*y)[i], (*z)[i], Z);
-            D0 = U200((*x)[i], (*y)[i], (*z)[i], Z);
-
-            // For x1
-            C1 = U100((*x1)[i], (*y1)[i], (*z1)[i], Z);
-            D1 = U200((*x1)[i], (*y1)[i], (*z1)[i], Z);
-        }
-
-        if (i == 2)
-        {
-            // For x0
-            E0 = U100((*x)[i], (*y)[i], (*z)[i], Z);
-            F0 = U200((*x)[i], (*y)[i], (*z)[i], Z);
-
-            // For x1
-            E1 = U100((*x1)[i], (*y1)[i], (*z1)[i], Z);
-            F1 = U200((*x1)[i], (*y1)[i], (*z1)[i], Z);
-        }
-
-        if (i == 3)
-        {
-            // For x0
-            G0 = U100((*x)[i], (*y)[i], (*z)[i], Z);
-            H0 = U200((*x)[i], (*y)[i], (*z)[i], Z);
-
-            // For x1
-            G1 = U100((*x1)[i], (*y1)[i], (*z1)[i], Z);
-            H1 = U200((*x1)[i], (*y1)[i], (*z1)[i], Z);
-        }
+        coeff[1][0][i]=U100((*x1)[i], (*y1)[i], (*z1)[i], Z);
+        coeff[1][1][i]=U200((*x1)[i], (*y1)[i], (*z1)[i], Z);
     }
+
+    // Position x0 but different beta values
+    psi1 *= 0.5 * std::exp(exp_j);
+    psi2 *= 0.5 * std::exp(exp_j_b);
+
+    // Position x1 but different beta values
+    psi11 *= 0.5 * std::exp(exp_j1);
+    psi12 *= 0.5 * std::exp(exp_j_b1);
+    
     // For x0
-    psi1 *= (A0 * D0 - B0 * C0) * (E0 * H0 - F0 * G0);
-    psi2 *= (A0 * D0 - B0 * C0) * (E0 * H0 - F0 * G0);
+    psi1 *= (coeff[0][0][0] * coeff[0][1][2] - coeff[0][0][2] * coeff[0][1][0]) *
+            (coeff[0][0][1] * coeff[0][1][3] - coeff[0][0][3] * coeff[0][1][1]);
+    psi2 *= (coeff[0][0][0] * coeff[0][1][2] - coeff[0][0][2] * coeff[0][1][0]) *
+            (coeff[0][0][1] * coeff[0][1][3] - coeff[0][0][3] * coeff[0][1][1]);
 
     // For x1
-    psi11 *= (A1 * D1 - B1 * C1) * (E1 * H1 - F1 * G1);
+    psi11 *= (coeff[1][0][0] * coeff[1][1][2] - coeff[1][0][2] * coeff[1][1][0]) *
+             (coeff[1][0][1] * coeff[1][1][3] - coeff[1][0][3] * coeff[1][1][1]);
+    psi12 *= (coeff[1][0][0] * coeff[1][1][2] - coeff[1][0][2] * coeff[1][1][0]) *
+             (coeff[1][0][1] * coeff[1][1][3] - coeff[1][0][3] * coeff[1][1][1]);
 
+    // Probability density function
     // Calcolous of probability density punction for 2 different value of Beta
     psi = psi1 * psi1;
     psi_b = psi2 * psi2;
 
     // Calcolous of probability density function for x1
-    psi_1 = psi11*psi11;
+    psi_1 = psi11 * psi11;
+    psi_1_b = psi12 * psi12;
+    // std::cout<<psi_1_b<<' '<<psi_1<<std::endl;
 }
 
 // Acceptance rate
@@ -283,7 +267,7 @@ double Prob(const std::vector<double> *x0,
             const std::vector<double> *Fy1,
             const std::vector<double> *Fz1,
             const double P_1,const double P_0,
-            const double dt, const double N,
+            const double dt, const uint32_t ,
             const double A_r)
 {
     // i0 is the old position (with i =x,y,z)
@@ -293,39 +277,58 @@ double Prob(const std::vector<double> *x0,
     // P0 is the probability in x_n
     // P1 is the probability in x_n+1
 
-    double Nu;
+    constexpr uint32_t N{4};
+    // Auxiliary variabile
+    double sum0{0};
+    double sum1{0};
+
+
+    struct VARI{
+        double x,y,z;
+        void print()
+        {
+            std::cout<< x << ' ' << y << ' ' << z << std::endl;
+        }
+    };
     
+    VARI vari[2][N];
+    
+    double Nu;
+    double term;
+
+    // Probability variabile
     double P;
     double A;
-    double T;
     
-    double exp_x;
-    double exp_y;
-    double exp_z;
-   
-        for (uint32_t i{0}; i < N; i++)
-    {
-        // Evaluation of exponent of transition matrix
-        exp_x = dt * dt * ((*Fx0)[i] * (*Fx0)[i] - (*Fx1)[i] * (*Fx1)[i]) 
-                + 2 * dt * ((*x0)[i] - (*x1)[i]) * ((*Fx0)[i] + (*Fx1)[i]);
-        exp_y = dt * dt * ((*Fy0)[i] * (*Fy0)[i] - (*Fy1)[i] * (*Fy1)[i]) 
-                + 2 * dt * ((*y0)[i] - (*y1)[i]) * ((*Fy0)[i] + (*Fy1)[i]);
-        exp_z = dt * dt * ((*Fz0)[i] * (*Fz0)[i] - (*Fz1)[i] * (*Fz1)[i]) 
-                + 2 * dt * ((*z0)[i] - (*z1)[i]) * ((*Fz0)[i] + (*Fz1)[i]);
-    }
 
-    Nu = (exp_x + exp_y + exp_z) / (4 * dt / A_r);
+    for (uint32_t i{0}; i < N; i++)
+    {
+        vari[0][i].x = (*x1)[i] - (*x0)[i] - dt * (*Fx0)[i];
+        vari[1][i].x = (*x0)[i] - (*x1)[i] - dt * (*Fx1)[i];
+
+        vari[0][i].y = (*y1)[i] - (*y0)[i] - dt * (*Fy0)[i];
+        vari[1][i].y = (*y0)[i] - (*y1)[i] - dt * (*Fy1)[i];
+
+        vari[0][i].z = (*z1)[i] - (*z0)[i] - dt * (*Fz0)[i];
+        vari[1][i].z = (*z0)[i] - (*z1)[i] - dt * (*Fz1)[i];
+
+        sum0 += vari[0][i].x + vari[0][i].y + vari[0][i].z;
+        sum1 += vari[1][i].x + vari[1][i].y + vari[1][i].z;
+    }
+    // vari[0][0].print();
+
+    // Evaluation of exponent of transition matrix
+    term = std::pow(sum1, 2.0) - std::pow(sum0, 2.0);
+    Nu = term / (4 * dt * A_r);
 
     // Estiamtion of acceptance rate
-    // put the value of P(x1) and P(x0)
     A = P_1 / P_0 * std::exp(Nu);
-
+    
     // Probability 
     P = std::min(A, 1.0);
-
+    
     return P;
 }
-
 
 // Evolution of the system with Langevien dynamics
 void Langevien(std::vector<double> *x1,
@@ -337,7 +340,7 @@ void Langevien(std::vector<double> *x1,
                const std::vector<double> *Fx0,
                const std::vector<double> *Fy0,
                const std::vector<double> *Fz0,
-               const double N, const double dt,
+               const uint32_t N, const double dt,
                const double A_r)
 {
 
@@ -345,53 +348,102 @@ void Langevien(std::vector<double> *x1,
     for (uint32_t j{0}; j < N; j++)
     {
         // Box-Muller equation for the random force
-        a = (double)rand() / RAND_MAX;
-        b = (double)rand() / RAND_MAX;
-        c = (double)rand() / RAND_MAX;
-        d = (double)rand() / RAND_MAX;
+        a = (double)rand() / ((double)RAND_MAX + 1);
+        b = (double)rand() / ((double)RAND_MAX + 1);
+        c = (double)rand() / ((double)RAND_MAX + 1);
+        d = (double)rand() / ((double)RAND_MAX + 1);
 
         // A,B,C have a normal distrubution with variance 2*A*dt
-        A = std::sqrt(-4 * A_r * dt * std::log10(1 - a)) * std::cos(2 * M_PI * b);
-        B = std::sqrt(-4 * A_r * dt * std::log10(1 - a)) * std::sin(2 * M_PI * b);
-        C = std::sqrt(-4 * A_r * dt * std::log10(1 - c)) * std::cos(2 * M_PI * d);
+        A = std::sqrt(-4 * A_r * dt * std::log(1 - a)) * std::cos(2 * M_PI * b);
+        B = std::sqrt(-4 * A_r * dt * std::log(1 - a)) * std::sin(2 * M_PI * b);
+        C = std::sqrt(-4 * A_r * dt * std::log(1 - c)) * std::cos(2 * M_PI * d);
 
         // Evolution of the sistem
-        (*x1)[j] = (*x0)[j] + dt * (*Fx0)[j] + dt * A;
-        (*y1)[j] = (*y0)[j] + dt * (*Fy0)[j] + dt * B;
-        (*z1)[j] = (*z0)[j] + dt * (*Fz0)[j] + dt * C;
+        (*x1)[j] = (*x0)[j] + dt * (*Fx0)[j] + A;
+        (*y1)[j] = (*y0)[j] + dt * (*Fy0)[j] + B;
+        (*z1)[j] = (*z0)[j] + dt * (*Fz0)[j] + C;
     }
 }
 
 // Evaluate the local energy of the sistem
-void LocalEnergy(double &LE,
+void LocalEnergy(double &LE, double &LE1,
                  const std::vector<double> *x,
                  const std::vector<double> *y,
                  const std::vector<double> *z,
-                 const double N, const double beta)
+                 const uint32_t , const double beta,
+                 const double beta1)
 {
-    double LE{0};
+    double LocalE{0};
+    double LocalE_beta{0};
     double r;
     double xx, yy, zz;
 
-    double f_j, f_j_d, f_j_dx, f_j_dy, f_j_dz, f_j_l;
 
-    double U_lap10, U_cor10, U_lap20, U_cor20;
-    double U_lap11, U_cor11, U_lap21, U_cor21;
-    double U_lap12, U_cor12, U_lap22, U_cor22;
-    double U_lap13, U_cor13, U_lap23, U_cor23;
+    constexpr uint32_t N=4;
 
-    double T0, T1, T2, T3;
-    double D0, D1;
+    struct F_J{
+        double d,dx,dy,dz,l;
+    };
 
-    double A, B, C, D, E, F, G, H;
-    double a, b, c, d, e, f, g, h, i, j, l, m, n, o, p, q, s, t, u, v;
+    F_J f_j_s[N];
+    F_J f_j_s1[N];
+    
+
+    struct U_der{
+        double U_lap1,U_cor1,U_lap2,U_cor2;
+        void print(){
+            std::cout << U_lap1 << ' ' << U_cor1 << ' ' << U_lap2 << ' ' << U_cor2;
+        }
+    };
+
+    U_der u_der[N];
+
+    struct U{
+        double U100,U200;
+    };
+
+    U u[N];
+
+    double T{0};
+    double T_beta{0};
+
+    double T0{0};
+    double T0_beta{0};
+
+    double T1{0};
+    double T1_beta{0};
+
+    double T2{0};
+    double T2_beta{0};
+
+    double T3{0};
+    double T3_beta{0};
+
+    double D0{1};
+    double D1{1};
 
     for (uint32_t i{0}; i < N; i++)
     {
-        //Potential term of local energy
+        f_j_s[i].d = 0;
+        f_j_s1[i].d = 0;
+
+        f_j_s[i].dx = 0;
+        f_j_s1[i].dx = 0;
+
+        f_j_s[i].dy = 0;
+        f_j_s1[i].dy = 0;
+
+        f_j_s[i].dz = 0;
+        f_j_s1[i].dz = 0;
+
+        f_j_s[i].l = 0;
+        f_j_s1[i].l = 0;
+
+
+        // Coulomb term
         r = std::sqrt((*x)[i] * (*x)[i] + (*y)[i] * (*y)[i] + (*z)[i] * (*z)[i]);
 
-        LE += N / r;
+        LocalE += -(N / r);
 
         for (uint32_t j{0}; j < N; j++)
         {
@@ -404,78 +456,52 @@ void LocalEnergy(double &LE,
 
                 r = std::sqrt(xx * xx + yy * yy + zz * zz);
 
-                // factor 0.5 for the sum
-                LE += N / 2 / r;
-
-                // Calcolus of Jastrow factor and its derivate
-                Jastrow(f_j, f_j_d, f_j_dx, f_j_dy, f_j_dz, f_j_l, xx, yy, zz, r, beta);
-                // todo: this don't sum the term
+                // Elecron-electron interaction term 
+                LocalE += 1.0 / 2 / r;
+            
+                // Calcolus of derivate Jastrow factor's for beta
+                Jastrow(f_j_s[i].d, f_j_s[i].dx, f_j_s[i].dy, f_j_s[i].dz, f_j_s[i].l, xx, yy, zz, r, beta);
+                // Calcolus of derivate Jastrow factor's for beta
+                Jastrow(f_j_s1[i].d, f_j_s1[i].dx, f_j_s1[i].dy, f_j_s1[i].dz, f_j_s1[i].l, xx, yy, zz, r, beta1);
             }
         }
+        dU100(u_der[i].U_lap1, u_der[i].U_cor1, (*x)[i], (*y)[i], (*z)[i], N);
+        dU200(u_der[i].U_lap2, u_der[i].U_cor2, (*x)[i], (*y)[i], (*z)[i], N);
+        u[i].U100 = U100((*x)[i], (*y)[i], (*z)[i], N);
+        u[i].U200 = U200((*x)[i], (*y)[i], (*z)[i], N);
 
-        // Term to estimate che kinetic part of local energy
-        if (i == 0)
-        {
-            dU100(U_lap10, U_cor10, (*x)[i], (*y)[i], (*z)[i]);
-            dU200(U_lap20, U_cor20, (*x)[i], (*y)[i], (*z)[i]);
-            A = U100((*x)[i], (*y)[i], (*z)[i], 4);
-            B = U200((*x)[i], (*y)[i], (*z)[i], 4);
-            a = f_j_d;
-            b = f_j_dx;
-            c = f_j_dy;
-            d = f_j_dz;
-            e = f_j_l;
-        }
-        if (i == 1)
-        {
-            dU100(U_lap11, U_cor11, (*x)[i], (*y)[i], (*z)[i]);
-            dU200(U_lap21, U_cor21, (*x)[i], (*y)[i], (*z)[i]);
-            C = U100((*x)[i], (*y)[i], (*z)[i], 4);
-            D = U200((*x)[i], (*y)[i], (*z)[i], 4);
-            f = f_j_d;
-            h = f_j_dx;
-            g = f_j_dy;
-            i = f_j_dz;
-            j = f_j_l;
-        }
-        if (i == 2)
-        {
-            dU100(U_lap12, U_cor12, (*x)[i], (*y)[i], (*z)[i]);
-            dU200(U_lap22, U_cor22, (*x)[i], (*y)[i], (*z)[i]);
-            E = U100((*x)[i], (*y)[i], (*z)[i], 4);
-            F = U200((*x)[i], (*y)[i], (*z)[i], 4);
-            l = f_j_d;
-            m = f_j_dx;
-            n = f_j_dy;
-            o = f_j_dz;
-            p = f_j_l;
-        }
-        if (i == 3)
-        {
-            dU100(U_lap13, U_cor13, (*x)[i], (*y)[i], (*z)[i]);
-            dU200(U_lap23, U_cor23, (*x)[i], (*y)[i], (*z)[i]);
-            G = U100((*x)[i], (*y)[i], (*z)[i], 4);
-            H = U200((*x)[i], (*y)[i], (*z)[i], 4);
-            q = f_j_d;
-            v = f_j_dx;
-            s = f_j_dy;
-            t = f_j_dz;
-            u = f_j_l; 
-        }
+        T += f_j_s[i].l + f_j_s[i].dx * f_j_s[i].dx + f_j_s[i].dy * f_j_s[i].dy + f_j_s[i].dz * f_j_s[i].dz;
+        T_beta += f_j_s1[i].l + f_j_s1[i].dx * f_j_s1[i].dx + f_j_s1[i].dy * f_j_s1[i].dy + f_j_s1[i].dz * f_j_s1[i].dz;
     }
-
-    D0 = A * F - E * B;
-    D1 = C * H - D * G;
     
-    // Term of kinetic energy of particle 1
-    T0 = (U_lap10 * F - U_lap20 * E + 2 * (U_cor10 * F - E * U_cor20) * a) / D0 + e + b * b + c * c + d * d;
-    // Term of kinetic energy of particle 2
-    T1 = (U_lap11 * H - U_lap21 * G + 2 * (U_cor11 * H - G * U_cor12) * f) / D1 + j + h * h + g * g + i * i;
-    // Term of kinetic energy of particle 3
-    T2 = (U_lap22 * A - U_lap12 * B + 2 * (U_cor22 * A - U_cor21 * B) * l) / D0 + p + m * m + n * n + o * o;
-    // Term of kinetic energy of particle 4
-    T3 = (U_lap23 * C - U_lap13 * D + 2 * (U_cor23 * C - U_cor13 * D) * q) / D1 + u + v * v + s * s + t * t;
+    // Denominator of local energy
+    D0 = u[0].U100 * u[2].U200 - u[0].U200 * u[2].U100;
+    D1 = u[1].U100 * u[3].U200 - u[1].U200 * u[3].U100;
+    
+    // beta
+    // Term of kinetic energy of particle i=1, in my paper
+    T0 = (u_der[0].U_lap1 * u[2].U200 - u_der[0].U_lap2 * u[2].U100 + 2 * (u_der[0].U_cor1 * u[2].U200 - u[2].U100 * u_der[0].U_cor2) * f_j_s[0].d) / D0;
+    // Term of kinetic energy of particle i=2, in my paper
+    T1 = (u_der[1].U_lap1 * u[3].U200 - u_der[1].U_lap2 * u[3].U100 + 2 * (u_der[1].U_cor1 * u[3].U200 - u[3].U100 * u_der[1].U_cor2) * f_j_s[1].d) / D1;
+    // Term of kinetic energy of particle i=3, in my paper
+    T2 = (u_der[2].U_lap2 * u[0].U100 - u_der[2].U_lap1 * u[0].U200 + 2 * (u_der[2].U_cor2 * u[0].U100 - u[0].U200 * u_der[2].U_cor1) * f_j_s[2].d) / D0;
+    // Term of kinetic energy of particle i=4, in my paper
+    T3 = (u_der[3].U_lap2 * u[1].U100 - u_der[3].U_lap1 * u[1].U200 + 2 * (u_der[3].U_cor2 * u[1].U100 - u[1].U200 * u_der[3].U_cor1) * f_j_s[3].d) / D1;
 
-    LE += T0 + T1 + T2 + T3;
-}
+    // beta1
+    // Term of kinetic energy of particle i=1, in my paper
+    T0_beta = (u_der[0].U_lap1 * u[2].U200 - u_der[0].U_lap2 * u[2].U100 + 2 * (u_der[0].U_cor1 * u[2].U200 - u[2].U100 * u_der[0].U_cor2) * f_j_s1[0].d) / D0;
+    // Term of kinetic energy of particle i=2, in my paper
+    T1_beta = (u_der[1].U_lap1 * u[3].U200 - u_der[1].U_lap2 * u[3].U100 + 2 * (u_der[1].U_cor1 * u[3].U200 - u[3].U100 * u_der[1].U_cor2) * f_j_s1[1].d) / D1;
+    // Term of kinetic energy of particle i=3, in my paper
+    T2_beta = (u_der[2].U_lap2 * u[0].U100 - u_der[2].U_lap1 * u[0].U200 + 2 * (u_der[2].U_cor2 * u[0].U100 - u[0].U200 * u_der[2].U_cor1) * f_j_s1[2].d) / D0;
+    // Term of kinetic energy of particle i=4, in my paper
+    T3_beta = (u_der[3].U_lap2 * u[1].U100 - u_der[3].U_lap1 * u[1].U200 + 2 * (u_der[3].U_cor2 * u[1].U100 - u[1].U200 * u_der[3].U_cor1) * f_j_s1[3].d) / D1;
 
+    // Local energy 
+    LocalE_beta = LocalE - 0.5 * (T0_beta + T1_beta + T2_beta + T3_beta + T_beta);
+    LocalE += -0.5 * (T0 + T1 + T2 + T3 + T);
+
+    LE = LocalE;
+    LE1 = LocalE_beta;
+}   

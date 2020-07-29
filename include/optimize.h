@@ -142,5 +142,7 @@ int fit_to_exp(double lambda[3],
 
 // 	return 0;
 // }
-
+int fit_to_exp_1par(double lambda[1],
+					std::vector<double> &datax,
+					std::vector<double> &datay);
 #endif // __OPTIMIZE_H__
